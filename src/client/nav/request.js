@@ -209,8 +209,9 @@ spf.nav.request.handleResponseFromCache_ = function(url, options, timing,
   }
   if (options.onPart && response['type'] == 'multipart') {
     var parts = response['parts'];
+    var shared = response;  // Top-level properties act as shared values.
     for (var i = 0; i < parts.length; i++) {
-      options.onPart(url, parts[i]);
+      options.onPart(url, parts[i], shared);
     }
   }
   spf.nav.request.done_(url, options, timing, response, updateCache);
@@ -269,10 +270,11 @@ spf.nav.request.handleChunkFromXHR_ = function(url, options, chunking,
     }
     return;
   }
-  if (options.onPart) {
-    for (var i = 0; i < parsed.parts.length; i++) {
-      spf.debug.debug('    parsed part', parsed.parts[i]);
-      options.onPart(url, parsed.parts[i]);
+  for (var i = 0; i < parsed.parts.length; i++) {
+    spf.debug.debug('    parsed part', parsed.parts[i]);
+    spf.nav.request.copySharedFrom_(chunking.shared, parsed.parts[i]);
+    if (options.onPart) {
+      options.onPart(url, parsed.parts[i], chunking.shared);
     }
   }
   chunking.complete = chunking.complete.concat(parsed.parts);
@@ -363,33 +365,27 @@ spf.nav.request.handleCompleteFromXHR_ = function(url, options, timing,
     }
     return;
   }
-  if (options.onPart && parts.length > 1) {
-    // Only execute callbacks for parts that have not already been processed.
+  if (parts.length > 1) {
     // In case there is an edge case where some parts were parsed on-the-fly
     // but the entire response needed a full parse here, start iteration where
     // the chunk processing left off.  This is mostly a safety measure and
     // the number of chunks processed here should be 0.
     for (var i = chunking.complete.length; i < parts.length; i++) {
       spf.debug.debug('    parsed part', parts[i]);
-      options.onPart(url, parts[i]);
+      spf.nav.request.copySharedFrom_(chunking.shared, parts[i]);
+      if (options.onPart) {
+        // Only execute callbacks for parts that have not been processed.
+        options.onPart(url, parts[i], chunking.shared);
+      }
     }
   }
   var response;
   if (parts.length > 1) {
-    var cacheType;
-    for (var i = 0, l = parts.length; i < l; i++) {
-      var part = parts[i];
-      if (part['cacheType']) {
-        cacheType = part['cacheType'];
-      }
-    }
     response = /** @type {spf.MultipartResponse} */ ({
       'parts': parts,
       'type': 'multipart'
     });
-    if (cacheType) {
-      response['cacheType'] = cacheType;
-    }
+    spf.nav.request.copySharedTo_(response, chunking.shared);
   } else if (parts.length == 1) {
     response = /** @type {spf.SingleResponse} */(parts[0]);
   } else {
@@ -427,6 +423,37 @@ spf.nav.request.done_ = function(url, options, timing, response, cache) {
   response['timing'] = timing;
   if (options.onSuccess) {
     options.onSuccess(url, response);
+  }
+};
+
+
+/**
+ * Copy shared values from a response.
+ *
+ * @param {!Object.<string>} shared The shared values.
+ * @param {spf.SingleResponse} response The response.
+ * @private
+ */
+spf.nav.request.copySharedFrom_ = function(shared, response) {
+  if ('cacheType' in response) {
+    shared['cacheType'] = response['cacheType'];
+  }
+  if ('name' in response) {
+    shared['name'] = response['name'];
+  }
+};
+
+
+/**
+ * Copy shared values to a response.
+ *
+ * @param {spf.SingleResponse} response The response.
+ * @param {!Object.<string>} shared The shared values.
+ * @private
+ */
+spf.nav.request.copySharedTo_ = function(response, shared) {
+  for (var k in shared) {
+    response[k] = shared[k];
   }
 };
 
@@ -556,6 +583,12 @@ spf.nav.request.Chunking_ = function() {
    * @type {!Array}
    */
   this.complete = [];
+  /**
+   * Values for response fields that are present in one part but meant to be
+   * shared across all (e.g. cacheType, name).
+   * @type {!Object.<string>}
+   */
+  this.shared = {};
 };
 
 

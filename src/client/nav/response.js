@@ -113,12 +113,14 @@ spf.nav.response.parse = function(text, opt_multipart, opt_lastDitch) {
  * @param {string} url The URL of the response being processed.
  * @param {spf.SingleResponse} response The SPF response object to process.
  * @param {spf.nav.Info=} opt_info The navigation info object.
+ * @param {Object.<string>=} opt_shared A shared values object.
  * @param {function(string, spf.SingleResponse)=} opt_callback Function to
  *     execute when processing is done; the first argument is `url`,
  *     the second argument is `response`.
  */
-spf.nav.response.process = function(url, response, opt_info, opt_callback) {
-  spf.debug.info('nav.response.process ', response, opt_info);
+spf.nav.response.process = function(url, response, opt_info, opt_shared,
+                                    opt_callback) {
+  spf.debug.info('nav.response.process ', response, opt_info, opt_shared);
 
   var isNavigate = opt_info && spf.string.startsWith(opt_info.type, 'navigate');
   var isReverse = opt_info && opt_info.reverse;
@@ -362,11 +364,13 @@ spf.nav.response.process = function(url, response, opt_info, opt_callback) {
  * @param {string} url The URL of the response being preprocessed.
  * @param {spf.SingleResponse} response The SPF response object to preprocess.
  * @param {spf.nav.Info=} opt_info The navigation info object.
+ * @param {Object.<string>=} opt_shared A shared values object.
  * @param {function(string, spf.SingleResponse)=} opt_callback Function to
  *     execute when preprocessing is done; the first argument is `url`,
  *     the second argument is `response`.
  */
-spf.nav.response.preprocess = function(url, response, opt_info, opt_callback) {
+spf.nav.response.preprocess = function(url, response, opt_info, opt_shared,
+                                       opt_callback) {
   spf.debug.info('nav.response.preprocess ', response);
   // Convert the URL to absolute, to be used for finding the task queue.
   var key = 'preprocess ' + spf.url.absolute(url);

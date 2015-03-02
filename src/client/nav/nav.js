@@ -663,9 +663,10 @@ spf.nav.handleNavigateError_ = function(options, url, err) {
  * @param {spf.nav.Info} info The navigation info object.
  * @param {string} url The requested URL, without the SPF identifier.
  * @param {spf.SingleResponse} partial The partial response object.
+ * @param {!Object.<string>} shared A shared values object.
  * @private
  */
-spf.nav.handleNavigatePart_ = function(options, info, url, partial) {
+spf.nav.handleNavigatePart_ = function(options, info, url, partial, shared) {
   // Reload if the "part process" event is canceled.
   if (!spf.nav.dispatchPartProcess_(url, partial, options)) {
     spf.nav.reload(url, spf.nav.ReloadReason.PART_PROCESS_CANCELED);
@@ -685,7 +686,7 @@ spf.nav.handleNavigatePart_ = function(options, info, url, partial) {
   }
 
   try {
-    spf.nav.response.process(url, partial, info, function() {
+    spf.nav.response.process(url, partial, info, shared, function() {
       spf.nav.dispatchPartDone_(url, partial, options);
     });
   } catch (err) {
@@ -749,7 +750,7 @@ spf.nav.handleNavigateSuccess_ = function(options, info, url, response) {
     // so an empty object is used to ensure events/callbacks are properly
     // queued after existing ones from any ongoing part prcoessing.
     var r = /** @type {spf.SingleResponse} */ (multipart ? {} : response);
-    spf.nav.response.process(url, r, info, function() {
+    spf.nav.response.process(url, r, info, null, function() {
       // If this navigation was from history, attempt to scroll to the previous
       // position after all processing is complete.  This should not be done
       // earlier because the prevous position might rely on page width/height
@@ -1032,9 +1033,11 @@ spf.nav.handleLoadError_ = function(isPrefetch, options, info, url, err) {
  * @param {spf.nav.Info} info The navigation info object.
  * @param {string} url The requested URL, without the SPF identifier.
  * @param {spf.SingleResponse} partial The partial response object.
+ * @param {!Object.<string>} shared A shared values object.
  * @private
  */
-spf.nav.handleLoadPart_ = function(isPrefetch, options, info, url, partial) {
+spf.nav.handleLoadPart_ = function(isPrefetch, options, info, url, partial,
+                                   shared) {
   // Abort the load/prefetch if the "part process" callback is canceled.
   // Note: pass "true" to only execute callbacks and not dispatch events.
   if (!spf.nav.dispatchPartProcess_(url, partial, options, true)) {
@@ -1080,7 +1083,7 @@ spf.nav.handleLoadPart_ = function(isPrefetch, options, info, url, partial) {
   var processFn = isPrefetch ?
       spf.nav.response.preprocess :
       spf.nav.response.process;
-  processFn(url, partial, info, function() {
+  processFn(url, partial, info, shared, function() {
     // Note: pass "true" to only execute callbacks and not dispatch events.
     spf.nav.dispatchPartDone_(url, partial, options, true);
   });
@@ -1164,7 +1167,7 @@ spf.nav.handleLoadSuccess_ = function(isPrefetch, options, info, url,
     // so an empty object is used to ensure the callback is properly
     // queued after existing ones from any ongoing part prcoessing.
     var r = /** @type {spf.SingleResponse} */ (multipart ? {} : response);
-    processFn(url, r, info, function() {
+    processFn(url, r, info, null, function() {
       // Note: pass "true" to only execute callbacks and not dispatch events.
       spf.nav.dispatchDone_(url, response, options, true);
     });
@@ -1226,14 +1229,15 @@ spf.nav.process = function(response, opt_callback) {
   };
   if (multipart) {
     var parts = response['parts'];
+    var shared = response;  // Top-level properties act as shared values.
     for (var i = 0; i < parts.length; i++) {
       var fn = spf.bind(done, null, i, parts.length - 1);
-      spf.nav.response.process(url, parts[i], null, fn);
+      spf.nav.response.process(url, parts[i], null, shared, fn);
     }
   } else {
     response = /** @type {spf.SingleResponse} */ (response);
     var fn = spf.bind(done, null, 0, 0);
-    spf.nav.response.process(url, response, null, fn);
+    spf.nav.response.process(url, response, null, null, fn);
   }
 };
 
